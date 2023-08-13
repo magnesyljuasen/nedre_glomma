@@ -1,0 +1,5 @@
+,objektid,byggtype_profet,areal,byggstandard_profet,grunnvarme,solceller,luft_luft_varmepumpe,fjernvarme,_nettutveksling_energi,_nettutveksling_effekt
+0,1,A,250,Y,0,0,0,1,10000.0,2.0
+1,2,A,500,Y,0,0,0,1,20000.0,4.0
+2,3,B,100,Y,1,0,0,0,13600.0,5.0
+3,4,C,150,Y,0,0,0,0,35100.0,9.0
