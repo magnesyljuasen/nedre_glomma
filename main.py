@@ -6,6 +6,11 @@ from oauthlib.oauth2 import BackendApplicationClient
 import swifter
 import ast
 import random
+import os
+from arcgis.features import GeoAccessor, GeoSeriesAccessor
+import helpscripts.energy_area_ids as energy_area_ids
+import pathlib
+import arcpy
 
 class EnergyAnalysis:
     def __init__(self):
@@ -96,11 +101,14 @@ class EnergyAnalysis:
         self.AIR_SOURCE_HEAT_PUMP = 'luft_luft_varmepumpe'
         self.DISTRICT_HEATING = 'fjernvarme'
         #-- fra matrikkel
-        self.OBJECT_ID = 'objektid'
-        self.BUILDING_STANDARD = 'byggstandard_profet'
-        self.BUILDING_TYPE = 'byggtype_profet'
-        self.BUILDING_AREA = 'areal'
-        self.BUILT_AREA = 'bebygd_areal'
+        self.OBJECT_ID = 'OBJECTID'
+        self.BUILDING_STANDARD = 'Energistandard_profet'
+        self.BUILDING_TYPE = 'Byggtype_profet'
+        self.BUILDING_AREA = 'BRUKSAREAL_TOTALT'
+        self.NUMBER_OF_FLOORS = 'ANTALL_ETASJER'
+        self.BUILT_AREA = 'BEBYGD_AREAL'
+        self.HAS_WELL = 'Energibronn'
+        self.HAS_FJERNVARME = 'Fjernvarme'
         #-- fra matrikkel
         self.TEMPERATURE_ARRAY = '_utetemperatur'
         self.THERMAL_DEMAND = '_termisk_energibehov'
@@ -112,9 +120,23 @@ class EnergyAnalysis:
         self.SOLAR_PANELS_PRODUCED = '_solcelleproduksjon'
 
     #-- functions
-    def read_arcgis(self, feature_layer = 'fra_arcgis.xlsx'):
+    def read_from_arcgis(self, gdb, rootfolder, feature_class_name):
+        #--
         # read from arcgis -> return df
-        df = pd.read_excel(feature_layer)
+        featureclass_input_path = os.path.join(gdb, feature_class_name)
+        energy_area_ids.spatial_join(byggpunkt_fc = featureclass_input_path)
+        spatial_df = pd.DataFrame.spatial.from_featureclass(featureclass_input_path)
+        return spatial_df
+    
+    def export_to_arcgis(self, df, gdb):
+        featureclass_output_name = gdb / "Byggpunkt_040623_vasket_123"
+        #if scenario != "default":
+        #    df = df.rename(columns = lambda x: x + f"_{scenario}", inplace = True)
+        df.spatial.to_featureclass(location=os.path.join(gdb, featureclass_output_name))
+    
+    def read_excel(self, sheet = 'input/fra_arcgis.xlsx'):
+        # read from excel -> return df
+        df = pd.read_excel(sheet)
         return df
 
     def __string_percentage(self, string):
@@ -129,11 +151,19 @@ class EnergyAnalysis:
         df.loc[random_indices, column_name] = random_values
         return df
     
-    def _add_values_randomly_thermal(self, df, prosentfordeling, innfyllingsverdi=True):
+    def __add_values_grunnvarme(self, df, fill_value = True):
+        df.loc[df[self.HAS_WELL] <= 1, self.GSHP] = fill_value
+        return df
+    
+    def __add_values_fjernvarme(self, df, fill_value = True):
+        df.loc[df[self.HAS_FJERNVARME] <= 1, self.DISTRICT_HEATING] = fill_value
+        return df
+    
+    def _add_values_randomly_thermal(self, df, percentages, fill_value=True):
         p1, p2, p3 = (
-            prosentfordeling[self.GSHP],
-            prosentfordeling[self.DISTRICT_HEATING],
-            prosentfordeling[self.AIR_SOURCE_HEAT_PUMP],
+            percentages[self.GSHP],
+            percentages[self.DISTRICT_HEATING],
+            percentages[self.AIR_SOURCE_HEAT_PUMP],
         )
         c1, c2, c3 = (
             self.GSHP,
@@ -142,17 +172,17 @@ class EnergyAnalysis:
         )
         # --
         df1 = self.__add_values_randomly(
-            df=df, column_name=c1, percentage=p1, fill_value=innfyllingsverdi
+            df=df, column_name=c1, percentage=p1, fill_value=fill_value
         )
 
-        df2 = df1[df1[c1] != innfyllingsverdi].reset_index(drop=True)
+        df2 = df1[df1[c1] != fill_value].reset_index(drop=True)
         df2 = self.__add_values_randomly(
-            df=df2, column_name=c2, percentage=p2, fill_value=innfyllingsverdi
+            df=df2, column_name=c2, percentage=p2, fill_value=fill_value
         )
 
-        df3 = df2[df2[c2] != innfyllingsverdi].reset_index(drop=True)
+        df3 = df2[df2[c2] != fill_value].reset_index(drop=True)
         df3 = self.__add_values_randomly(
-            df=df3, column_name=c3, percentage=p3, fill_value=innfyllingsverdi
+            df=df3, column_name=c3, percentage=p3, fill_value=fill_value
         )
 
         # slå sammen df1 og df2
@@ -201,7 +231,9 @@ class EnergyAnalysis:
                 self.DISTRICT_HEATING : percentage_fjernvarme,
                 self.AIR_SOURCE_HEAT_PUMP : percentage_varmepumpe,
             }
-            modified_df = self._add_values_randomly_thermal(df = df_building_type, prosentfordeling=percentages)
+            modified_df = self.__add_values_grunnvarme(df = df_building_type, fill_value = fill_value)
+            #modified_df = self.__add_values_fjernvarme(df = df_building_type, fill_value = fill_value)
+            modified_df = self._add_values_randomly_thermal(df = df_building_type, percentages = percentages)
             modified_df = self.__add_values_randomly(df = modified_df, column_name = self.SOLAR_PANELS, percentage = percentage_solceller, fill_value = fill_value )
             modified_df_list.append(modified_df)
         #-- Merge alle dataframes i områdeliste
@@ -347,9 +379,12 @@ class EnergyAnalysis:
 
     def solcelle_calculation(self, row):
         solceller = 0
-        area = row[self.BUILT_AREA]
-        if row[self.SOLAR_PANELS] == 1:
-            solceller = area * self.SOLARPANEL_DATA[self.SOLARPANEL_BUILDINGS[row[self.BUILDING_TYPE]]].to_numpy()
+        if row[self.BUILDING_AREA] != 0:
+            area = row[self.BUILT_AREA]
+            if area == 0:    
+                area = row[self.BUILDING_AREA] / row[self.NUMBER_OF_FLOORS]
+            if row[self.SOLAR_PANELS] == 1:
+                solceller = area * self.SOLARPANEL_DATA[self.SOLARPANEL_BUILDINGS[row[self.BUILDING_TYPE]]].to_numpy()
         return -solceller
 
     def compile_data(self, row):
@@ -362,7 +397,7 @@ class EnergyAnalysis:
         list_df = [df[i:i+chunk_size] for i in range(0,df.shape[0],chunk_size)]
         return list_df
 
-    def run_simulation(self, df, scenario_name, preprocessing = True, chunk_size = 10):
+    def run_simulation(self, df, scenario_name, preprocessing = True, chunk_size = 100, test = True):
         def __merge_dataframe_list(df_chunked_list):
             df_results = pd.concat(df_chunked_list).reset_index(drop=True)
             df_results = df_results.sort_values(self.OBJECT_ID).reset_index(drop=True)
@@ -391,12 +426,11 @@ class EnergyAnalysis:
             # write more often, for every 5 chunk
             if (index % 5) == 0:
                 __merge_dataframe_list(df_chunked_list)
+            if index == 10 and test == True:
+                break 
         df_results = __merge_dataframe_list(df_chunked_list)
         return df_results
-
-    def to_arcgis(self, df):
-        pass
-
+    
     def add_temperature_series(self, df, temperature_series = "custom"):
         if temperature_series == "default":
             outdoor_temperature = np.array([0])
@@ -406,13 +440,18 @@ class EnergyAnalysis:
         return df
 
     def main(self):
+        runner = "magne.syljuasen"
+        rootfolder = pathlib.Path(r'C:\Users\magne.syljuasen\Downloads\GIS\GIS'.format(runner))
+        gdb = rootfolder / 'Datagrunnlag.gdb'
+        featureclass_input_name = gdb / "Byggpunkt_040623_vasket"
         # -- setup
-        table = self.read_arcgis(feature_layer = 'fra_arcgis.xlsx')
+        #table = self.read_excel(feature_layer = 'input/fra_arcgis.xlsx')
+        table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
         # -- preprocess profet data
         #profet_data = preprocess_profet_data(df = table)
         # -- simulation 1
         energy_dict = ({
-            "A" : "S30_O50_F60_G40_V50",
+            "A" : "S30_O50_F60_G40_V00",
             "B" : "F80_G20_V20_S40",
             "C" : "F20_V60_S20",
             "D" : "F10_V60_S20",
@@ -427,15 +466,28 @@ class EnergyAnalysis:
         })
         table = self.create_scenario(df = table, energy_scenario = energy_dict)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = "S1")
+        table = self.run_simulation(df = table, scenario_name = "S1", test = True)
         # -- simulation 2
         table = self.modify_scenario(df = table)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = "S2")
+        table = self.run_simulation(df = table, scenario_name = "S2", test = True)
         # -- simulation 3
-        #to_arcgis(df = table)
-        print(table)
-
-# mangler på valg av scenario_konsept
+        self.export_to_arcgis(df = table, gdb = gdb)   
+        
 if __name__ == '__main__':
+    runner= 'torbjorn.boe'
+    rootfolder = pathlib.Path(r'C:\Users\magne.syljuasen\Downloads\GIS\GIS'.format(runner))
+    gdb = rootfolder / 'Datagrunnlag.gdb'
+    output_fc_name = "Test_Energianlyse_TEB"
+    byggpunkt_fc_name = gdb / "Byggpunkt_040623_vasket"
+    omraadeidfelt='Omraadeid'
+    # Logg settings
+    #logfile = rootfolder / 'Energianalyselog_Zero.log'
+    #Loggit.OpprettLogg(filename=logfile, folder=rootfolder)
+    #logger = logging.getLogger('Energianalyselog')
+    #logger.info(f'Parametrer: rotmappe {rootfolder}, out fc {output_fc_name}, gdb {gdb.name}, byggpunkt {byggpunkt_fc_name.name}')
+    #--
+    #scenario='dagens_situasjon'
+    #test= True
+    
     EnergyAnalysis().main()
