@@ -14,6 +14,65 @@ import arcpy
 
 class EnergyAnalysis:
     def __init__(self):
+        self.ENERGY_DICTS = { 
+                             "A" : ({
+                                 "A" : "S30_O50_F60_G40_V00",
+                                 "B" : "F80_G20_V20_S40",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F50_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 }),
+                             "B" : ({
+                                 "A" : "S20_O50_F60_G40_V00",
+                                 "B" : "F40_G20_V20_S40",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F50_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 }),
+                             "C" : ({
+                                 "A" : "S99_O50_F60_G40_V00",
+                                 "B" : "F40_G20_V20_S40",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F50_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 }),
+                             "D" : ({
+                                 "A" : "S20_O50_F60_G40_V00",
+                                 "B" : "F40_G20_V20_S40",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F99_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 })
+                             }
+        
         self.BUILDING_TYPES = {
             "A": "Hou",
             "B": "Apt",
@@ -88,6 +147,7 @@ class EnergyAnalysis:
             'E' : 'Småhus', 
             'F' : 'Boligblokk',
             'G' : 'Næringsbygg_mindre',
+            'H' : 'Næringsbygg_mindre',
             'I' : 'Næringsbygg_større',
             'J' : 'Småhus', 
             'K' : 'Boligblokk',
@@ -109,6 +169,7 @@ class EnergyAnalysis:
         self.BUILT_AREA = 'BEBYGD_AREAL'
         self.HAS_WELL = 'Energibronn'
         self.HAS_FJERNVARME = 'Fjernvarme'
+        self.ENERGY_AREA_ID = 'Energiomraadeid'
         #-- fra matrikkel
         self.TEMPERATURE_ARRAY = '_utetemperatur'
         self.THERMAL_DEMAND = '_termisk_energibehov'
@@ -128,10 +189,8 @@ class EnergyAnalysis:
         spatial_df = pd.DataFrame.spatial.from_featureclass(featureclass_input_path)
         return spatial_df
     
-    def export_to_arcgis(self, df, gdb):
-        featureclass_output_name = gdb / "Byggpunkt_040623_vasket_123"
-        #if scenario != "default":
-        #    df = df.rename(columns = lambda x: x + f"_{scenario}", inplace = True)
+    def export_to_arcgis(self, df, gdb, scenario_name = "default"):
+        featureclass_output_name = gdb / f"results_{scenario_name}"
         df.spatial.to_featureclass(location=os.path.join(gdb, featureclass_output_name))
     
     def read_excel(self, sheet = 'input/fra_arcgis.xlsx'):
@@ -200,7 +259,7 @@ class EnergyAnalysis:
         return merged_df
     
     #et energiscnarie kan være prosentvis antall av bygg som får ulik energimiks
-    def create_scenario(self, df, energy_scenario):
+    def __create_scenario(self, df, energy_scenario):
         fill_value = True
         no_fill_value = 0
         # populate df with scenario paramaters
@@ -240,10 +299,21 @@ class EnergyAnalysis:
         modified_df = pd.concat(modified_df_list).reset_index(drop=True)
         modified_df = modified_df.sort_values(self.OBJECT_ID).reset_index(drop=True)
         return modified_df
+    
+    def create_scenario(self, df):
+        table_splitted_list = []
+        for energy_area in df[self.ENERGY_AREA_ID].unique():
+            if isinstance(energy_area, str):
+                energy_dict = self.ENERGY_DICTS[energy_area]
+                table_splitted = df.loc[df[self.ENERGY_AREA_ID] == energy_area]
+                table_splitted_list.append(table_splitted)
+        df = pd.concat(table_splitted_list).reset_index(drop = True)
+        df = df.sort_values(self.OBJECT_ID).reset_index(drop=True)
+        #--
+        df = self.__create_scenario(df = df, energy_scenario = energy_dict)
+        return df
 
-    def modify_scenario(self, df, energy_scenario = "a"):
-        #for byggtype A-> fjernvarme 50% varmepumpe30% solceller 20% og oppgradert byggestandard
-
+    def modify_scenario(self, df):
         # based on condition in dataframe
         df[self.BUILDING_STANDARD] = np.where(df[self.BUILDING_STANDARD] == 'X', "Y", df[self.BUILDING_STANDARD])
         #df[self.SOLAR_PANELS] = np.where(df[self.BUILDING_TYPE] == 'A', 1, 0)
@@ -450,29 +520,17 @@ class EnergyAnalysis:
         # -- preprocess profet data
         #profet_data = preprocess_profet_data(df = table)
         # -- simulation 1
-        energy_dict = ({
-            "A" : "S30_O50_F60_G40_V00",
-            "B" : "F80_G20_V20_S40",
-            "C" : "F20_V60_S20",
-            "D" : "F10_V60_S20",
-            "E" : "F50_V40_S20",
-            "F" : "F20_V60_S20",
-            "G" : "F20_V60_S20_O10",
-            "H" : "F20_V60_S20",
-            "I" : "F20_V60_S20",
-            "J" : "F20_V60_S20",
-            "K" : "F20_V60_S20",
-            "L" : "F20_V60_S20",
-        })
-        table = self.create_scenario(df = table, energy_scenario = energy_dict)
+        table = self.create_scenario(df = table)
         table = self.add_temperature_series(df = table, temperature_series = "default")
         table = self.run_simulation(df = table, scenario_name = "S1", test = True)
+        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "default")   
         # -- simulation 2
         table = self.modify_scenario(df = table)
         table = self.add_temperature_series(df = table, temperature_series = "default")
         table = self.run_simulation(df = table, scenario_name = "S2", test = True)
         # -- simulation 3
-        self.export_to_arcgis(df = table, gdb = gdb)   
+        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "s1")   
+        
         
 if __name__ == '__main__':
     runner= 'torbjorn.boe'
