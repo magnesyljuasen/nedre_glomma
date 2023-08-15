@@ -16,7 +16,7 @@ class EnergyAnalysis:
     def __init__(self):
         self.ENERGY_DICTS = { 
                              "A" : ({
-                                 "A" : "S00_F00_G00_V00",
+                                 "A" : "S99_F00_G00_V00",
                                  }),
                              "B" : ({
                                  "A" : "S20_O50_F60_G40_V00",
@@ -190,6 +190,7 @@ class EnergyAnalysis:
     def __string_percentage(self, string):
         if string == "00":
             return 0
+
         return int(f"{string[1]}{string[2]}")
     
     def __add_values_randomly(self, df, column_name, percentage, fill_value=True):
