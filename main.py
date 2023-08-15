@@ -218,7 +218,7 @@ class EnergyAnalysis:
         df.loc[df[self.HAS_FJERNVARME] <= 1, self.DISTRICT_HEATING] = fill_value
         return df
     
-    def _add_values_randomly_thermal(self, df, percentages, fill_value=True):
+    def __add_values_randomly_thermal(self, df, percentages, fill_value=True):
         p1, p2, p3 = (
             percentages[self.GSHP],
             percentages[self.DISTRICT_HEATING],
@@ -292,7 +292,7 @@ class EnergyAnalysis:
             }
             modified_df = self.__add_values_grunnvarme(df = df_building_type, fill_value = fill_value)
             #modified_df = self.__add_values_fjernvarme(df = df_building_type, fill_value = fill_value)
-            modified_df = self._add_values_randomly_thermal(df = df_building_type, percentages = percentages)
+            modified_df = self.__add_values_randomly_thermal(df = df_building_type, percentages = percentages)
             modified_df = self.__add_values_randomly(df = modified_df, column_name = self.SOLAR_PANELS, percentage = percentage_solceller, fill_value = fill_value )
             modified_df_list.append(modified_df)
         #-- Merge alle dataframes i områdeliste
@@ -461,7 +461,7 @@ class EnergyAnalysis:
         thermal_balance = row[self.THERMAL_DEMAND] + row[self.FROM_SOURCE] + row[self.DISTRICT_HEATING_PRODUCED]
         electric_balance = row[self.ELECTRIC_DEMAND] + row[self.COMPRESSOR] + row[self.PEAK] + row[self.SOLAR_PANELS_PRODUCED]
         total_balance = thermal_balance + electric_balance
-        return total_balance, round(np.sum(total_balance),-2), round(np.max(total_balance),0)
+        return total_balance, round(np.sum(total_balance),-2), round((total_balance[1279]),0)
     
     def chunkify(self, df, chunk_size):
         list_df = [df[i:i+chunk_size] for i in range(0,df.shape[0],chunk_size)]
@@ -523,14 +523,13 @@ class EnergyAnalysis:
         table = self.create_scenario(df = table)
         table = self.add_temperature_series(df = table, temperature_series = "default")
         table = self.run_simulation(df = table, scenario_name = "S1", test = True)
-        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "default")   
+        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S1")   
         # -- simulation 2
         table = self.modify_scenario(df = table)
         table = self.add_temperature_series(df = table, temperature_series = "default")
         table = self.run_simulation(df = table, scenario_name = "S2", test = True)
-        # -- simulation 3
-        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "s1")   
-        
+        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S2")   
+         # -- simulation 3       
         
 if __name__ == '__main__':
     runner= 'torbjorn.boe'
