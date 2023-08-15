@@ -16,18 +16,7 @@ class EnergyAnalysis:
     def __init__(self):
         self.ENERGY_DICTS = { 
                              "A" : ({
-                                 "A" : "S30_O50_F60_G40_V00",
-                                 "B" : "F80_G20_V20_S40",
-                                 "C" : "F20_V60_S20",
-                                 "D" : "F10_V60_S20",
-                                 "E" : "F50_V40_S20",
-                                 "F" : "F20_V60_S20",
-                                 "G" : "F20_V60_S20_O10",
-                                 "H" : "F20_V60_S20",
-                                 "I" : "F20_V60_S20",
-                                 "J" : "F20_V60_S20",
-                                 "K" : "F20_V60_S20",
-                                 "L" : "F20_V60_S20",
+                                 "A" : "S00_F00_G00_V00",
                                  }),
                              "B" : ({
                                  "A" : "S20_O50_F60_G40_V00",
@@ -199,6 +188,8 @@ class EnergyAnalysis:
         return df
 
     def __string_percentage(self, string):
+        if string == "00":
+            return 0
         return int(f"{string[1]}{string[2]}")
     
     def __add_values_randomly(self, df, column_name, percentage, fill_value=True):
@@ -306,11 +297,10 @@ class EnergyAnalysis:
             if isinstance(energy_area, str):
                 energy_dict = self.ENERGY_DICTS[energy_area]
                 table_splitted = df.loc[df[self.ENERGY_AREA_ID] == energy_area]
+                table_splitted = self.__create_scenario(df = table_splitted, energy_scenario = energy_dict)
                 table_splitted_list.append(table_splitted)
         df = pd.concat(table_splitted_list).reset_index(drop = True)
         df = df.sort_values(self.OBJECT_ID).reset_index(drop=True)
-        #--
-        df = self.__create_scenario(df = df, energy_scenario = energy_dict)
         return df
 
     def modify_scenario(self, df):
