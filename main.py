@@ -7,20 +7,78 @@ import swifter
 import ast
 import random
 import os
-from arcgis.features import GeoAccessor, GeoSeriesAccessor
+#from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import helpscripts.energy_area_ids as energy_area_ids
 import pathlib
-import arcpy
+#import arcpy
 
 class EnergyAnalysis:
     def __init__(self):
-        self.ENERGY_DICTS = { 
+        self.ENERGY_DICTS_1 = { 
                              "A" : ({
-                                 "A" : "S99_F00_G00_V00",
+                                 "A" : "S00_F00_G50_V00",
                                  }),
                              "B" : ({
                                  "A" : "S20_O50_F60_G40_V00",
+                                 "B" : "F40_G80_V20_S70",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F50_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 }),
+                             "C" : ({
+                                 "A" : "S99_O50_F60_G40_V00",
                                  "B" : "F40_G20_V20_S40",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F50_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 }),
+                             "D" : ({
+                                 "A" : "S20_O50_F60_G40_V00",
+                                 "B" : "F40_G20_V20_S40",
+                                 "C" : "F20_V60_S20",
+                                 "D" : "F10_V60_S20",
+                                 "E" : "F99_V40_S20",
+                                 "F" : "F20_V60_S20",
+                                 "G" : "F20_V60_S20_O10",
+                                 "H" : "F20_V60_S20",
+                                 "I" : "F20_V60_S20",
+                                 "J" : "F20_V60_S20",
+                                 "K" : "F20_V60_S20",
+                                 "L" : "F20_V60_S20",
+                                 })
+                             }
+        self.ENERGY_DICTS_2 = { 
+                             "A" : ({
+                                 "A" : "S99_F99_G99_V99",
+                                 "B" : "S99_F99_G99_V99",
+                                 "C" : "S99_F99_G99_V99",
+                                 "D" : "S99_F99_G99_V99",
+                                 "E" : "S99_F99_G99_V99",
+                                 "F" : "S99_F99_G99_V99",
+                                 "G" : "S99_F99_G99_V99",
+                                 "H" : "S99_F99_G99_V99",
+                                 "I" : "S99_F99_G99_V99",
+                                 "J" : "S99_F99_G99_V99",
+                                 "K" : "S99_F99_G99_V99",
+                                 "L" : "S99_F99_G99_V99",
+                                 }),
+                             "B" : ({
+                                 "A" : "S20_O50_F60_G40_V00",
+                                 "B" : "F40_G80_V20_S70",
                                  "C" : "F20_V60_S20",
                                  "D" : "F10_V60_S20",
                                  "E" : "F50_V40_S20",
@@ -90,6 +148,21 @@ class EnergyAnalysis:
             "J" : 90,
             "K" : 90,
             "L" : 90,
+            }
+        
+        self.DEKNINGSGRADER_ASHP = {
+            'A' : 70, 
+            'B' : 40,
+            "C" : 40,
+            "D" : 40,
+            "E" : 40,
+            "F" : 40,
+            "G" : 40,
+            "H" : 40,
+            "I" : 40,
+            "J" : 40,
+            "K" : 40,
+            "L" : 40,
             }
 
         self.COEFFICIENT_OF_PERFORMANCES_GSHP = {
@@ -203,11 +276,11 @@ class EnergyAnalysis:
         return df
     
     def __add_values_grunnvarme(self, df, fill_value = True):
-        df.loc[df[self.HAS_WELL] <= 1, self.GSHP] = fill_value
+        df.loc[df[self.HAS_WELL] == 1, self.GSHP] = fill_value
         return df
     
     def __add_values_fjernvarme(self, df, fill_value = True):
-        df.loc[df[self.HAS_FJERNVARME] <= 1, self.DISTRICT_HEATING] = fill_value
+        df.loc[df[self.HAS_FJERNVARME] == 1, self.DISTRICT_HEATING] = fill_value
         return df
     
     def __add_values_randomly_thermal(self, df, percentages, fill_value=True):
@@ -285,29 +358,35 @@ class EnergyAnalysis:
             modified_df = self.__add_values_grunnvarme(df = df_building_type, fill_value = fill_value)
             #modified_df = self.__add_values_fjernvarme(df = df_building_type, fill_value = fill_value)
             modified_df = self.__add_values_randomly_thermal(df = df_building_type, percentages = percentages)
-            modified_df = self.__add_values_randomly(df = modified_df, column_name = self.SOLAR_PANELS, percentage = percentage_solceller, fill_value = fill_value )
+            modified_df = self.__add_values_randomly(df = modified_df, column_name = self.SOLAR_PANELS, percentage = percentage_solceller, fill_value = fill_value)
             modified_df_list.append(modified_df)
         #-- Merge alle dataframes i områdeliste
-        modified_df = pd.concat(modified_df_list).reset_index(drop=True)
+        modified_df = pd.concat(modified_df_list)
+        modified_df = pd.concat([modified_df, df])
+        modified_df = modified_df.drop_duplicates(subset=self.OBJECT_ID, keep="first")
         modified_df = modified_df.sort_values(self.OBJECT_ID).reset_index(drop=True)
         return modified_df
     
-    def create_scenario(self, df):
+    def create_scenario(self, df, energy_dicts):
         table_splitted_list = []
         for energy_area in df[self.ENERGY_AREA_ID].unique():
             if isinstance(energy_area, str):
-                energy_dict = self.ENERGY_DICTS[energy_area]
+                energy_dict = energy_dicts[energy_area]
                 table_splitted = df.loc[df[self.ENERGY_AREA_ID] == energy_area]
                 table_splitted = self.__create_scenario(df = table_splitted, energy_scenario = energy_dict)
                 table_splitted_list.append(table_splitted)
-        df = pd.concat(table_splitted_list).reset_index(drop = True)
-        df = df.sort_values(self.OBJECT_ID).reset_index(drop=True)
+        df = pd.concat(table_splitted_list)
+        df = df.sort_values(self.OBJECT_ID).reset_index(drop = True)
         return df
 
-    def modify_scenario(self, df):
+    def modify_scenario(self, df, energy_dicts):
+        table_no_entries = df.loc[(df[self.GSHP] == 0) & (df[self.DISTRICT_HEATING] == 0) & (df[self.AIR_SOURCE_HEAT_PUMP] == 0) & (df[self.SOLAR_PANELS] == 0)]
+        new_df = self.create_scenario(df = table_no_entries, energy_dicts = energy_dicts)
+        df = pd.concat([new_df, df])
+        df = df.drop_duplicates(subset=self.OBJECT_ID, keep="first")
+        df = df.sort_values(self.OBJECT_ID).reset_index(drop=True)
         # based on condition in dataframe
-        df[self.BUILDING_STANDARD] = np.where(df[self.BUILDING_STANDARD] == 'X', "Y", df[self.BUILDING_STANDARD])
-        #df[self.SOLAR_PANELS] = np.where(df[self.BUILDING_TYPE] == 'A', 1, 0)
+        #df[self.BUILDING_STANDARD] = np.where(df[self.BUILDING_STANDARD] == 'X', "Y", df[self.BUILDING_STANDARD])
         return df
 
     def __get_secret(self, filename):
@@ -419,12 +498,13 @@ class EnergyAnalysis:
         kompressor, levert_fra_kilde, spisslast = 0, 0, 0
         #-
         if row[self.GSHP] == 1 or row[self.AIR_SOURCE_HEAT_PUMP] == 1:
+            varmebehov = row[self.THERMAL_DEMAND]
             if row[self.GSHP] == 1:
                 COEFFICIENT_OF_PERFORMANCES = self.COEFFICIENT_OF_PERFORMANCES_GSHP
+                levert_fra_varmepumpe = self.__dekningsgrad_calculation(self.DEKNINGSGRADER_GSHP[row[self.BUILDING_TYPE]], varmebehov * VIRKNINGSGRAD)
             else:
                 COEFFICIENT_OF_PERFORMANCES = self.COEFFICIENT_OF_PERFORMANCES_ASHP
-            varmebehov = row[self.THERMAL_DEMAND]
-            levert_fra_varmepumpe = self.__dekningsgrad_calculation(self.DEKNINGSGRADER_GSHP[row[self.BUILDING_TYPE]], varmebehov * VIRKNINGSGRAD)
+                levert_fra_varmepumpe = self.__dekningsgrad_calculation(self.DEKNINGSGRADER_ASHP[row[self.BUILDING_TYPE]], varmebehov * VIRKNINGSGRAD)
             kompressor = levert_fra_varmepumpe / COEFFICIENT_OF_PERFORMANCES[row[self.BUILDING_TYPE]]
             levert_fra_kilde = levert_fra_varmepumpe - kompressor
             spisslast = varmebehov - levert_fra_varmepumpe
@@ -506,21 +586,21 @@ class EnergyAnalysis:
         gdb = rootfolder / 'Datagrunnlag.gdb'
         featureclass_input_name = gdb / "Byggpunkt_040623_vasket"
         # -- setup
-        #table = self.read_excel(feature_layer = 'input/fra_arcgis.xlsx')
-        table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
+        table = self.read_excel(sheet = 'input/fra_arcgis.xlsx')        
+        #table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
         # -- preprocess profet data
         #profet_data = preprocess_profet_data(df = table)
         # -- simulation 1
-        table = self.create_scenario(df = table)
+        table = self.create_scenario(df = table, energy_dicts = self.ENERGY_DICTS_1)
         table = self.add_temperature_series(df = table, temperature_series = "default")
         table = self.run_simulation(df = table, scenario_name = "S1", test = True)
-        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S1")   
+        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S1")   
         # -- simulation 2
-        table = self.modify_scenario(df = table)
+        table = self.modify_scenario(df = table, energy_dicts = self.ENERGY_DICTS_2)
         table = self.add_temperature_series(df = table, temperature_series = "default")
         table = self.run_simulation(df = table, scenario_name = "S2", test = True)
-        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S2")   
-         # -- simulation 3       
+        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S2")   
+        # -- simulation 3       
         
 if __name__ == '__main__':
     runner= 'torbjorn.boe'

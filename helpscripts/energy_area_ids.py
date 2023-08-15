@@ -1,5 +1,5 @@
 # henter energiomraadenavn til byggpunkt.
-import arcpy
+#import arcpy
 #import Agol_data
 
 def spatial_join(byggpunkt_fc: str):
