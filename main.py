@@ -11,6 +11,9 @@ from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import helpscripts.energy_area_ids as energy_area_ids
 import pathlib
 import arcpy
+import logging
+import time
+from helpscripts.log_it import create_log
 
 class EnergyAnalysis:
     def __init__(self):
@@ -561,6 +564,7 @@ class EnergyAnalysis:
         for index, df_chunked in enumerate(chunked):
             # profet / demand
             if preprocessing == True:
+                logger.info(f'Simulert {chunk_size * index} bygg')
                 df_chunked[self.THERMAL_DEMAND], df_chunked[self.ELECTRIC_DEMAND] = zip(*df_chunked.swifter.apply(self.profet_calculation_simplified, axis=1))
             else:
                 df_chunked[self.THERMAL_DEMAND], df_chunked[self.ELECTRIC_DEMAND] = zip(*df_chunked.swifter.apply(self.profet_calculation, axis=1))
@@ -598,30 +602,39 @@ class EnergyAnalysis:
         # -- preprocess profet data
         #profet_data = preprocess_profet_data(df = table)
         # -- simulation 1
+        start_time = time.time()
         table = self.create_scenario(df = table, energy_dicts = self.ENERGY_DICTS_1)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = scenario_default_name, test = False)
-        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S1")   
+        table = self.run_simulation(df = table, scenario_name = scenario_default_name, test = True)
+        end_time = time.time()
+        logger.info(f"Simulering 1: {round(end_time - start_time,0)} s")
+        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = scenario_default_name)   
         # -- simulation 2
+        start_time = time.time()
         table = self.modify_scenario(df = table, energy_dicts = self.ENERGY_DICTS_2)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = scenario_1_name, test = False)
-        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S2")   
+        table = self.run_simulation(df = table, scenario_name = scenario_1_name, test = True)
+        end_time = time.time()
+        logger.info(f"Simulering 2: {round(end_time - start_time,0)} s")
+        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = scenario_1_name)   
         # -- simulation 3       
         
 if __name__ == '__main__':
+    # settings
     runner = "magne.syljuasen"
     rootfolder = pathlib.Path(r'C:\Users\magne.syljuasen\Downloads\GIS\GIS'.format(runner))
     gdb = rootfolder / 'Datagrunnlag.gdb'
     featureclass_input_name = gdb / "Byggpunkt_040623_vasket"
+    scenario_default_name = "default"
+    scenario_1_name = "scenario_1"
 
-    # Logg settings
-    #logfile = rootfolder / 'Energianalyselog_Zero.log'
-    #Loggit.OpprettLogg(filename=logfile, folder=rootfolder)
-    #logger = logging.getLogger('Energianalyselog')
-    #logger.info(f'Parametrer: rotmappe {rootfolder}, out fc {output_fc_name}, gdb {gdb.name}, byggpunkt {byggpunkt_fc_name.name}')
+    # log settings
+    logfile = rootfolder / 'Energianalyselog_Zero.log'
+    create_log(filename=logfile, folder=rootfolder)
+    logger = logging.getLogger('Energianalyselog')
+    logger.info(f'Parametrer: rotmappe {rootfolder}, out fc {scenario_default_name}, gdb {gdb.name}, byggpunkt {featureclass_input_name}')
     #--
     scenario_default_name='dagens_situasjon'
     scenario_1_name = "1"
     
-    EnergyAnalysis().main(runner = runner, rootfolder = rootfolder, gdb = gdb, featureclass_input_name = featureclass_input_name, scenario_default_name="default", scenario_1_name="1")
+    EnergyAnalysis().main(runner = runner, rootfolder = rootfolder, gdb = gdb, featureclass_input_name = featureclass_input_name, scenario_default_name = scenario_default_name, scenario_1_name = scenario_1_name)
