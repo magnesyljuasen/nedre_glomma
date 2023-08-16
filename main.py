@@ -7,10 +7,10 @@ import swifter
 import ast
 import random
 import os
-#from arcgis.features import GeoAccessor, GeoSeriesAccessor
+from arcgis.features import GeoAccessor, GeoSeriesAccessor
 import helpscripts.energy_area_ids as energy_area_ids
 import pathlib
-#import arcpy
+import arcpy
 
 class EnergyAnalysis:
     def __init__(self):
@@ -455,14 +455,16 @@ class EnergyAnalysis:
         return result_df
 
     def profet_calculation_simplified(self, row):
-        thermal_demand_series = self.PROFET_DATA[f"{row[self.BUILDING_TYPE]}_{row[self.BUILDING_STANDARD]}_THERMAL"]
-        thermal_demand = row[self.BUILDING_AREA] * np.array(thermal_demand_series)
-        electric_demand_series = self.PROFET_DATA[f"{row[self.BUILDING_TYPE]}_{row[self.BUILDING_STANDARD]}_ELECTRIC"]
-        electric_demand = row[self.BUILDING_AREA] * np.array(electric_demand_series)
+        try:
+            thermal_demand_series = self.PROFET_DATA[f"{row[self.BUILDING_TYPE]}_{row[self.BUILDING_STANDARD]}_THERMAL"]
+            thermal_demand = row[self.BUILDING_AREA] * np.array(thermal_demand_series)
+            electric_demand_series = self.PROFET_DATA[f"{row[self.BUILDING_TYPE]}_{row[self.BUILDING_STANDARD]}_ELECTRIC"]
+            electric_demand = row[self.BUILDING_AREA] * np.array(electric_demand_series)
+        except Exception:
+            thermal_demand, electric_demand = [0], [0]
         return thermal_demand, electric_demand
 
     def profet_calculation(self, row):
-        # profet API logic
         thermal_demand, electric_demand = self.__profet_api(building_standard = row[self.BUILDING_STANDARD], building_type = row[self.BUILDING_TYPE], area = row[self.BUILDING_AREA], temperature_array = row[self.TEMPERATURE_ARRAY])
         return thermal_demand, electric_demand
 
@@ -522,17 +524,26 @@ class EnergyAnalysis:
         solceller = 0
         if row[self.BUILDING_AREA] != 0:
             area = row[self.BUILT_AREA]
-            if area == 0:    
-                area = row[self.BUILDING_AREA] / row[self.NUMBER_OF_FLOORS]
+            if area == 0:
+                number_of_floors = row[self.NUMBER_OF_FLOORS]
+                scale_factor = number_of_floors    
+                if number_of_floors == 0:
+                    scale_factor = 5
+                area = row[self.BUILDING_AREA] / scale_factor
             if row[self.SOLAR_PANELS] == 1:
                 solceller = area * self.SOLARPANEL_DATA[self.SOLARPANEL_BUILDINGS[row[self.BUILDING_TYPE]]].to_numpy()
         return -solceller
 
     def compile_data(self, row):
-        thermal_balance = row[self.THERMAL_DEMAND] + row[self.FROM_SOURCE] + row[self.DISTRICT_HEATING_PRODUCED]
-        electric_balance = row[self.ELECTRIC_DEMAND] + row[self.COMPRESSOR] + row[self.PEAK] + row[self.SOLAR_PANELS_PRODUCED]
-        total_balance = thermal_balance + electric_balance
-        return total_balance, round(np.sum(total_balance),-2), round((total_balance[1279]),0)
+        if (row[self.THERMAL_DEMAND][0] == 0) or (row[self.ELECTRIC_DEMAND][0] == 0):
+            total_balance, year_sum, winter_max = 0, 0, 0 
+        else:
+            thermal_balance = row[self.THERMAL_DEMAND] + row[self.FROM_SOURCE] + row[self.DISTRICT_HEATING_PRODUCED]
+            electric_balance = row[self.ELECTRIC_DEMAND] + row[self.COMPRESSOR] + row[self.PEAK] + row[self.SOLAR_PANELS_PRODUCED]
+            total_balance = thermal_balance + electric_balance
+            year_sum = round(np.sum(total_balance),-2)
+            winter_max = round((total_balance[1279]),0)
+        return total_balance, year_sum, winter_max
     
     def chunkify(self, df, chunk_size):
         list_df = [df[i:i+chunk_size] for i in range(0,df.shape[0],chunk_size)]
@@ -586,19 +597,19 @@ class EnergyAnalysis:
         gdb = rootfolder / 'Datagrunnlag.gdb'
         featureclass_input_name = gdb / "Byggpunkt_040623_vasket"
         # -- setup
-        table = self.read_excel(sheet = 'input/fra_arcgis.xlsx')        
-        #table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
+        #table = self.read_excel(sheet = 'input/fra_arcgis.xlsx')        
+        table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
         # -- preprocess profet data
         #profet_data = preprocess_profet_data(df = table)
         # -- simulation 1
         table = self.create_scenario(df = table, energy_dicts = self.ENERGY_DICTS_1)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = "S1", test = True)
+        table = self.run_simulation(df = table, scenario_name = "S1", test = False)
         #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S1")   
         # -- simulation 2
         table = self.modify_scenario(df = table, energy_dicts = self.ENERGY_DICTS_2)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = "S2", test = True)
+        table = self.run_simulation(df = table, scenario_name = "S2", test = False)
         #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S2")   
         # -- simulation 3       
         
