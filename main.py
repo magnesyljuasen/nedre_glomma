@@ -595,12 +595,14 @@ class EnergyAnalysis:
         df[self.TEMPERATURE_ARRAY] = [outdoor_temperature] * df.shape[0]
         return df
 
-    def main(self, runner, rootfolder, gdb, featureclass_input_name, scenario_default_name, scenario_1_name):
+    def main(self, rootfolder, gdb, featureclass_input_name, scenario_default_name, scenario_1_name):
         # -- setup
         #table = self.read_excel(sheet = 'input/fra_arcgis.xlsx')        
         table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
+        
         # -- preprocess profet data
         #profet_data = preprocess_profet_data(df = table)
+        
         # -- simulation 1
         start_time = time.time()
         table = self.create_scenario(df = table, energy_dicts = self.ENERGY_DICTS_1)
@@ -608,7 +610,9 @@ class EnergyAnalysis:
         table = self.run_simulation(df = table, scenario_name = scenario_default_name, test = True)
         end_time = time.time()
         logger.info(f"Simulering 1: {round(end_time - start_time,0)} s")
-        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = scenario_default_name)   
+        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = scenario_default_name)   
+        logger.info(f"Eksportert til ArcGIS")
+        
         # -- simulation 2
         start_time = time.time()
         table = self.modify_scenario(df = table, energy_dicts = self.ENERGY_DICTS_2)
@@ -616,7 +620,9 @@ class EnergyAnalysis:
         table = self.run_simulation(df = table, scenario_name = scenario_1_name, test = True)
         end_time = time.time()
         logger.info(f"Simulering 2: {round(end_time - start_time,0)} s")
-        #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = scenario_1_name)   
+        self.export_to_arcgis(df = table, gdb = gdb, scenario_name = scenario_1_name)  
+        logger.info(f"Eksportert til ArcGIS") 
+        
         # -- simulation 3       
         
 if __name__ == '__main__':
@@ -633,8 +639,6 @@ if __name__ == '__main__':
     create_log(filename=logfile, folder=rootfolder)
     logger = logging.getLogger('Energianalyselog')
     logger.info(f'Parametrer: rotmappe {rootfolder}, out fc {scenario_default_name}, gdb {gdb.name}, byggpunkt {featureclass_input_name}')
-    #--
-    scenario_default_name='dagens_situasjon'
-    scenario_1_name = "1"
     
-    EnergyAnalysis().main(runner = runner, rootfolder = rootfolder, gdb = gdb, featureclass_input_name = featureclass_input_name, scenario_default_name = scenario_default_name, scenario_1_name = scenario_1_name)
+    # run
+    EnergyAnalysis().main(rootfolder = rootfolder, gdb = gdb, featureclass_input_name = featureclass_input_name, scenario_default_name = scenario_default_name, scenario_1_name = scenario_1_name)
