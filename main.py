@@ -591,11 +591,7 @@ class EnergyAnalysis:
         df[self.TEMPERATURE_ARRAY] = [outdoor_temperature] * df.shape[0]
         return df
 
-    def main(self):
-        runner = "magne.syljuasen"
-        rootfolder = pathlib.Path(r'C:\Users\magne.syljuasen\Downloads\GIS\GIS'.format(runner))
-        gdb = rootfolder / 'Datagrunnlag.gdb'
-        featureclass_input_name = gdb / "Byggpunkt_040623_vasket"
+    def main(self, runner, rootfolder, gdb, featureclass_input_name, scenario_default_name, scenario_1_name):
         # -- setup
         #table = self.read_excel(sheet = 'input/fra_arcgis.xlsx')        
         table = self.read_from_arcgis(gdb = gdb, rootfolder = rootfolder, feature_class_name = featureclass_input_name)
@@ -604,29 +600,28 @@ class EnergyAnalysis:
         # -- simulation 1
         table = self.create_scenario(df = table, energy_dicts = self.ENERGY_DICTS_1)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = "S1", test = False)
+        table = self.run_simulation(df = table, scenario_name = scenario_default_name, test = False)
         #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S1")   
         # -- simulation 2
         table = self.modify_scenario(df = table, energy_dicts = self.ENERGY_DICTS_2)
         table = self.add_temperature_series(df = table, temperature_series = "default")
-        table = self.run_simulation(df = table, scenario_name = "S2", test = False)
+        table = self.run_simulation(df = table, scenario_name = scenario_1_name, test = False)
         #self.export_to_arcgis(df = table, gdb = gdb, scenario_name = "S2")   
         # -- simulation 3       
         
 if __name__ == '__main__':
-    runner= 'torbjorn.boe'
+    runner = "magne.syljuasen"
     rootfolder = pathlib.Path(r'C:\Users\magne.syljuasen\Downloads\GIS\GIS'.format(runner))
     gdb = rootfolder / 'Datagrunnlag.gdb'
-    output_fc_name = "Test_Energianlyse_TEB"
-    byggpunkt_fc_name = gdb / "Byggpunkt_040623_vasket"
-    omraadeidfelt='Omraadeid'
+    featureclass_input_name = gdb / "Byggpunkt_040623_vasket"
+
     # Logg settings
     #logfile = rootfolder / 'Energianalyselog_Zero.log'
     #Loggit.OpprettLogg(filename=logfile, folder=rootfolder)
     #logger = logging.getLogger('Energianalyselog')
     #logger.info(f'Parametrer: rotmappe {rootfolder}, out fc {output_fc_name}, gdb {gdb.name}, byggpunkt {byggpunkt_fc_name.name}')
     #--
-    #scenario='dagens_situasjon'
-    #test= True
+    scenario_default_name='dagens_situasjon'
+    scenario_1_name = "1"
     
-    EnergyAnalysis().main()
+    EnergyAnalysis().main(runner = runner, rootfolder = rootfolder, gdb = gdb, featureclass_input_name = featureclass_input_name, scenario_default_name="default", scenario_1_name="1")
